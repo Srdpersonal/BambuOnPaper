@@ -3,9 +3,17 @@
 Arduino/PlatformIO firmware for an ESP32-S3 Bambu Lab status display on a
 Zhongjingyuan 2.66 inch SSD1680 e-paper panel.
 
+![BambuOnPaper e-paper status display](docs/bambuonpaper-preview.jpg)
+
 This is a lightweight Arduino rewrite of the e-paper path we built in
 PrintSphere. The first version is intentionally Cloud-first: Wi-Fi setup,
 Bambu Cloud CN login, Cloud MQTT live status, and monochrome e-paper rendering.
+
+BambuOnPaper is meant to be a quiet, always-on printer companion: it shows the
+current Bambu Lab print state without keeping a bright TFT backlight running all
+day. The e-paper panel keeps the last status visible with very little power, so
+it fits the slow-changing nature of printer progress better than a conventional
+LCD/TFT screen.
 
 ## Hardware
 

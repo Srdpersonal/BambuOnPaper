@@ -1,0 +1,16 @@
+.pio/
+.vscode/
+.DS_Store
+*.heic
+*.HEIC
+*.bin
+*.elf
+*.map
+*.log
+*.csv
+*.nvs
+*.dump
+.env
+.env.*
+secrets/
+credentials/

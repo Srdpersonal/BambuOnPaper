@@ -5,8 +5,8 @@ Zhongjingyuan 2.66 inch SSD1680 e-paper panel.
 
 ![BambuOnPaper e-paper status display](docs/bambuonpaper-preview.jpg)
 
-This is a lightweight Arduino rewrite of the e-paper path we built in
-PrintSphere. The first version is intentionally Cloud-first: Wi-Fi setup,
+This is a lightweight Arduino rewrite of the e-paper status path. The first
+version is intentionally Cloud-first: Wi-Fi setup,
 Bambu Cloud CN login, Cloud MQTT live status, and monochrome e-paper rendering.
 
 BambuOnPaper is meant to be a quiet, always-on printer companion: it shows the
@@ -40,7 +40,7 @@ build expects the SSD1680 `BUSY` pin to be idle low.
 ## Current Features
 
 - Arduino framework with PlatformIO
-- Wi-Fi setup AP: `PrintSphere-Setup` / `printsphere`
+- Wi-Fi setup AP: `PaperBambu-Setup` / `paperbambu`
 - Web config portal on `http://192.168.4.1` during setup
 - Bambu Cloud password login
 - Bambu Cloud email/SMS verification-code request and code-login submit
@@ -88,7 +88,7 @@ pio device monitor --port /dev/cu.usbmodem1401
 ## Setup
 
 1. Flash the firmware.
-2. Join Wi-Fi AP `PrintSphere-Setup` with password `printsphere`.
+2. Join Wi-Fi AP `PaperBambu-Setup` with password `paperbambu`.
 3. Open `http://192.168.4.1`.
 4. Fill Wi-Fi, region, Bambu account, Bambu password, and printer serial number.
 5. Save. The device reboots, connects to Wi-Fi, logs in to Bambu Cloud, and

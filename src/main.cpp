@@ -23,8 +23,8 @@
 
 namespace {
 
-constexpr char kDeviceName[] = "PrintSphere";
-constexpr char kSetupPassword[] = "printsphere";
+constexpr char kDeviceName[] = "PaperBambu";
+constexpr char kSetupPassword[] = "paperbambu";
 constexpr char kLoginPath[] = "/v1/user-service/user/login";
 constexpr char kEmailCodePath[] = "/v1/user-service/user/sendemail/code";
 constexpr char kSmsCodePath[] = "/v1/user-service/user/sendsmscode";
@@ -42,6 +42,8 @@ constexpr uint8_t kFullRefreshControl = 0xF7;
 constexpr uint8_t kPartialRefreshControl = 0xFC;
 constexpr uint8_t kMaxPartialBeforeFull = 5;
 constexpr int kMaxPartialPixels = (EPAPER_WIDTH * EPAPER_HEIGHT) / 2;
+constexpr int kDisplayWidth = EPAPER_HEIGHT;
+constexpr int kDisplayHeight = EPAPER_WIDTH;
 constexpr char kShanghaiTimezone[] = "CST-8";
 
 constexpr char kGlobalSignRootR3[] = R"CERT(
@@ -350,7 +352,7 @@ float json_float(T object, const char* key, float fallback = -1.0f) {
 
 class ConfigStore {
  public:
-  bool begin() { return prefs_.begin("printsphere", false); }
+  bool begin() { return prefs_.begin("paperbambu", false); }
 
   WifiCredentials load_wifi() {
     return {to_std(prefs_.getString("wifi_ssid", "")), to_std(prefs_.getString("wifi_pass", ""))};
@@ -415,9 +417,10 @@ void mutate_snapshot(const std::function<void(PrinterSnapshot&)>& fn) {
 
 class EpaperCanvas {
  public:
-  EpaperCanvas(int width, int height)
-      : width_(width), height_(height), bytes_per_row_((width + 7) / 8),
-        buffer_(static_cast<size_t>(bytes_per_row_ * height_), 0xFF) {}
+  EpaperCanvas(int width, int height, bool landscape = false)
+      : width_(width), height_(height), landscape_(landscape),
+        bytes_per_row_((EPAPER_WIDTH + 7) / 8),
+        buffer_(static_cast<size_t>(bytes_per_row_ * EPAPER_HEIGHT), 0xFF) {}
 
   int width() const { return width_; }
   int height() const { return height_; }
@@ -426,8 +429,18 @@ class EpaperCanvas {
 
   void set_pixel(int x, int y, bool black) {
     if (x < 0 || y < 0 || x >= width_ || y >= height_) return;
-    const size_t idx = static_cast<size_t>(y * bytes_per_row_ + x / 8);
-    const uint8_t mask = static_cast<uint8_t>(0x80U >> (x & 7));
+    int physical_x = x;
+    int physical_y = y;
+    if (landscape_) {
+      physical_x = y;
+      physical_y = EPAPER_HEIGHT - 1 - x;
+    }
+    if (physical_x < 0 || physical_y < 0 || physical_x >= EPAPER_WIDTH ||
+        physical_y >= EPAPER_HEIGHT) {
+      return;
+    }
+    const size_t idx = static_cast<size_t>(physical_y * bytes_per_row_ + physical_x / 8);
+    const uint8_t mask = static_cast<uint8_t>(0x80U >> (physical_x & 7));
     if (black) buffer_[idx] &= static_cast<uint8_t>(~mask);
     else buffer_[idx] |= mask;
   }
@@ -519,6 +532,7 @@ class EpaperCanvas {
 
   int width_ = 0;
   int height_ = 0;
+  bool landscape_ = false;
   int bytes_per_row_ = 0;
   std::vector<uint8_t> buffer_;
 };
@@ -555,7 +569,7 @@ class EpaperDisplay {
 
   bool show_status(const EpaperStatusLines& lines) {
     if (!initialize()) return false;
-    EpaperCanvas canvas(EPAPER_WIDTH, EPAPER_HEIGHT);
+    EpaperCanvas canvas(kDisplayWidth, kDisplayHeight, true);
     render_status(&canvas, lines);
     const std::vector<uint8_t>& frame = canvas.buffer();
     const DirtyRect dirty = dirty_rect(frame);
@@ -700,21 +714,28 @@ class EpaperDisplay {
   void render_status(EpaperCanvas* canvas, const EpaperStatusLines& lines) {
     canvas->clear();
     const int width = canvas->width();
+    const int height = canvas->height();
     const int content_width = width - 12;
-    canvas->fill_rect(0, 0, width, 20, true);
-    canvas->draw_text(6, 4, fit_text(*canvas, "PRINTSPHERE", 1, content_width - 42), 1);
-    canvas->draw_right_text(width - 6, 4, fit_text(*canvas, lines.progress, 2, 38), 2);
-    canvas->draw_text(6, 34, fit_text(*canvas, lines.status, 2, content_width), 2);
-    canvas->draw_text(6, 60, fit_text(*canvas, lines.detail, 1, content_width), 1);
-    canvas->fill_rect(0, 86, width, 2, true);
-    canvas->draw_text(6, 104, fit_text(*canvas, "LEFT", 1, 44), 1);
-    canvas->draw_right_text(width - 6, 100, fit_text(*canvas, lines.remaining, 2, 84), 2);
-    canvas->draw_text(6, 136, fit_text(*canvas, "LAYER", 1, 50), 1);
-    canvas->draw_right_text(width - 6, 132, fit_text(*canvas, lines.layers, 2, 84), 2);
-    canvas->draw_text(6, 172, fit_text(*canvas, lines.temperatures, 1, content_width), 1);
-    canvas->fill_rect(0, 204, width, 1, true);
-    canvas->draw_text(6, 220, fit_text(*canvas, lines.network, 1, content_width), 1);
-    canvas->draw_text(6, 242, fit_text(*canvas, lines.clock, 1, content_width), 1);
+    canvas->draw_text(6, 4, fit_text(*canvas, "PAPERBAMBU", 1, content_width - 70), 1);
+    canvas->draw_right_text(width - 6, 1, fit_text(*canvas, lines.progress, 2, 62), 2);
+    canvas->fill_rect(0, 20, width, 2, true);
+
+    canvas->draw_text(6, 30, fit_text(*canvas, lines.status, 2, content_width), 2);
+    canvas->draw_text(6, 52, fit_text(*canvas, lines.detail, 1, content_width), 1);
+    canvas->fill_rect(0, 72, width, 1, true);
+
+    constexpr int left_x = 6;
+    constexpr int right_x = 154;
+    constexpr int metric_width = 136;
+    canvas->draw_text(left_x, 84, "LEFT", 1);
+    canvas->draw_text(right_x, 84, "LAYER", 1);
+    canvas->draw_text(left_x, 98, fit_text(*canvas, lines.remaining, 2, metric_width), 2);
+    canvas->draw_text(right_x, 98, fit_text(*canvas, lines.layers, 2, metric_width), 2);
+
+    canvas->fill_rect(0, 122, width, 1, true);
+    canvas->draw_text(6, 130, fit_text(*canvas, lines.temperatures, 1, 112), 1);
+    canvas->draw_right_text(width - 6, 130, fit_text(*canvas, lines.network, 1, 150), 1);
+    canvas->draw_text(6, height - 10, fit_text(*canvas, lines.clock, 1, content_width), 1);
   }
 
   DirtyRect dirty_rect(const std::vector<uint8_t>& next) const {
@@ -798,7 +819,7 @@ EpaperStatusLines build_epaper_status_lines(const PrinterSnapshot& snapshot) {
   } else if (!snapshot.detail.empty()) {
     lines.detail = snapshot.detail;
   } else {
-    lines.detail = "PrintSphere";
+    lines.detail = "PaperBambu";
   }
   char buf[40] = {};
   std::snprintf(buf, sizeof(buf), "%d%%",
@@ -829,11 +850,11 @@ EpaperStatusLines build_epaper_status_lines(const PrinterSnapshot& snapshot) {
   }
   lines.temperatures = buf;
   if (snapshot.total_layers > 0) {
-    std::snprintf(buf, sizeof(buf), "L %u/%u", snapshot.current_layer, snapshot.total_layers);
+    std::snprintf(buf, sizeof(buf), "%u/%u", snapshot.current_layer, snapshot.total_layers);
   } else if (snapshot.current_layer > 0) {
-    std::snprintf(buf, sizeof(buf), "L %u/--", snapshot.current_layer);
+    std::snprintf(buf, sizeof(buf), "%u/--", snapshot.current_layer);
   } else {
-    std::snprintf(buf, sizeof(buf), "L --/--");
+    std::snprintf(buf, sizeof(buf), "--/--");
   }
   lines.layers = buf;
   if (snapshot.connection == PrinterConnectionState::kWaitingForCredentials) {
@@ -1235,7 +1256,7 @@ class BambuCloudClient {
     mqtt_report_topic_ = "device/" + serial + "/report";
     mqtt_request_topic_ = "device/" + serial + "/request";
     mqtt_.setServer(mqtt_host(), kCloudMqttPort);
-    const std::string client_id = "printsphere-cloud-" + std::to_string(static_cast<unsigned>(esp_random()));
+    const std::string client_id = "paperbambu-cloud-" + std::to_string(static_cast<unsigned>(esp_random()));
     Serial.printf("Connecting to Bambu Cloud MQTT %s:%u serial=%s user=%s\n", mqtt_host(),
                   kCloudMqttPort, serial.c_str(), mqtt_username_.c_str());
     if (!mqtt_.connect(client_id.c_str(), mqtt_username_.c_str(), access_token_.c_str())) {
@@ -1501,7 +1522,7 @@ String json_escape(const std::string& input) {
 String portal_html() {
   return F(
       "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" "
-      "content=\"width=device-width,initial-scale=1\"><title>PrintSphere Web Config</title>"
+      "content=\"width=device-width,initial-scale=1\"><title>PaperBambu Web Config</title>"
       "<style>:root{--bg:#0b1015;--panel:#121a23;--line:#263548;--text:#eef4fb;"
       "--muted:#9fb0c4;--accent:#f0a64b;--ok:#4ade80;--warn:#facc15;--bad:#fb7185}"
       "*{box-sizing:border-box}body{margin:0;background:#0b1015;color:var(--text);"
@@ -1516,7 +1537,7 @@ String portal_html() {
       "button{border:0;border-radius:999px;padding:12px 18px;background:var(--accent);font-weight:800;"
       "cursor:pointer}.muted{color:var(--muted)}.status{font-weight:800}.ok{color:var(--ok)}"
       ".warn{color:var(--warn)}.bad{color:var(--bad)}</style></head><body><main class=\"page\">"
-      "<div class=\"hero\"><div><h1>PrintSphere Web Config</h1><p>Configure Wi-Fi, Bambu Cloud, "
+      "<div class=\"hero\"><div><h1>PaperBambu Web Config</h1><p>Configure Wi-Fi, Bambu Cloud, "
       "and the active printer serial.</p></div><div id=\"badge\" class=\"status warn\">Loading</div></div>"
       "<div class=\"grid\"><section class=\"card\"><h2>Wi-Fi</h2><div class=\"row\"><div><label>SSID</label>"
       "<input id=\"wifi_ssid\"></div><div><label>Password</label><input id=\"wifi_pass\" type=\"password\" "
@@ -1739,7 +1760,7 @@ void connect_wifi_from_store() {
 void setup() {
   Serial.begin(115200);
   delay(200);
-  Serial.println("Bootstrapping Arduino PrintSphere port");
+  Serial.println("Bootstrapping Arduino PaperBambu port");
   gStateMutex = xSemaphoreCreateMutex();
   gConfig.begin();
   connect_wifi_from_store();
